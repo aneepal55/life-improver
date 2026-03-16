@@ -62,12 +62,23 @@ echo "Building app bundle..."
   --windowed \
   --name "$APP_NAME" \
   --icon "$ICNS_PATH" \
+  --add-data "$ROOT_DIR/assets:assets" \
   "$ROOT_DIR/health_app.py"
 
 APP_BUNDLE="$ROOT_DIR/dist/$APP_NAME.app"
 if [[ ! -d "$APP_BUNDLE" ]]; then
   echo "Build completed but app bundle was not found at: $APP_BUNDLE"
   exit 1
+fi
+
+PLIST_PATH="$APP_BUNDLE/Contents/Info.plist"
+if [[ -f "$PLIST_PATH" ]]; then
+  /usr/libexec/PlistBuddy -c "Set :LSUIElement true" "$PLIST_PATH" >/dev/null 2>&1 \
+    || /usr/libexec/PlistBuddy -c "Add :LSUIElement bool true" "$PLIST_PATH"
+fi
+
+if command -v codesign >/dev/null 2>&1; then
+  codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null 2>&1 || true
 fi
 
 if [[ "$INSTALL_FLAG" == "--install" ]]; then

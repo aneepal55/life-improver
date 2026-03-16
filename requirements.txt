@@ -1,1 +1,2 @@
-# No external packages required.
+Pillow>=10.0.0
+pystray>=0.19.5

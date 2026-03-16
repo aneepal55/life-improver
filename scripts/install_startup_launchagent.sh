@@ -27,6 +27,7 @@ cat > "$PLIST_PATH" <<EOF
     <string>$APP_PATH</string>
     <string>--args</string>
     <string>--background</string>
+    <string>--autostart</string>
   </array>
   <key>RunAtLoad</key>
   <true/>
