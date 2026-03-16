@@ -31,10 +31,13 @@ class HealthApp:
         self.timer_id = None
         self.water_limit = 0
         self.stand_limit = 0
+        self.stand_break_seconds = 5 * 60
         self.water_due_at = None
         self.stand_due_at = None
+        self.stand_break_due_at = None
         self.water_remaining = None
         self.stand_remaining = None
+        self.stand_break_remaining = None
         self.status_var = tk.StringVar(value="Ready")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.bind("<Command-q>", self.quit_app_event)
@@ -128,6 +131,7 @@ class HealthApp:
                 pystray.MenuItem(
                     "Set Stand Interval",
                     pystray.Menu(
+                        pystray.MenuItem("1 min", lambda icon, item: self.tray_set_interval("stand", 1)),
                         pystray.MenuItem("10 mins", lambda icon, item: self.tray_set_interval("stand", 10)),
                         pystray.MenuItem("20 mins", lambda icon, item: self.tray_set_interval("stand", 20)),
                         pystray.MenuItem("30 mins", lambda icon, item: self.tray_set_interval("stand", 30)),
@@ -291,6 +295,12 @@ class HealthApp:
         seconds = self.remaining_seconds("stand")
         if seconds is None:
             return "Stand in: not started"
+        if self.running and self.stand_break_due_at is not None:
+            break_seconds = max(0, int(math.ceil(self.stand_break_due_at - time.time())))
+            if break_seconds > 0:
+                return f"Stand break: {self.format_duration(break_seconds)}"
+        if not self.running and self.stand_break_remaining is not None and self.stand_break_remaining > 0:
+            return f"Stand break paused at: {self.format_duration(self.stand_break_remaining)}"
         if self.running:
             return f"Stand in: {self.format_duration(seconds)}"
         return f"Stand paused at: {self.format_duration(seconds)}"
@@ -321,6 +331,8 @@ class HealthApp:
             self.stand_entry.delete(0, tk.END)
             self.stand_entry.insert(0, str(minutes))
             self.stand_limit = minutes * 60
+            self.stand_break_due_at = None
+            self.stand_break_remaining = None
             if self.running:
                 self.stand_due_at = now + self.stand_limit
                 self.stand_remaining = self.stand_limit
@@ -345,6 +357,8 @@ class HealthApp:
         self.stand_remaining = self.stand_limit
         self.water_due_at = None
         self.stand_due_at = None
+        self.stand_break_due_at = None
+        self.stand_break_remaining = None
 
         if self.running:
             self.running = False
@@ -531,7 +545,8 @@ class HealthApp:
             self.stand_remaining = self.stand_limit
 
         self.water_remaining = max(0, min(int(self.water_remaining), self.water_limit))
-        self.stand_remaining = max(0, min(int(self.stand_remaining), self.stand_limit))
+        stand_max_remaining = self.stand_limit + self.stand_break_seconds
+        self.stand_remaining = max(0, min(int(self.stand_remaining), stand_max_remaining))
 
         if self.water_remaining == 0:
             self.water_remaining = self.water_limit
@@ -540,6 +555,12 @@ class HealthApp:
 
         self.water_due_at = now + self.water_remaining
         self.stand_due_at = now + self.stand_remaining
+        if self.stand_break_remaining is not None and self.stand_break_remaining > 0:
+            self.stand_break_remaining = min(int(self.stand_break_remaining), int(self.stand_remaining))
+            self.stand_break_due_at = now + self.stand_break_remaining
+        else:
+            self.stand_break_due_at = None
+            self.stand_break_remaining = None
 
         self.running = True
         self.start_btn.config(
@@ -560,6 +581,12 @@ class HealthApp:
                 self.water_remaining = max(0, int(math.ceil(self.water_due_at - now)))
             if self.stand_due_at is not None:
                 self.stand_remaining = max(0, int(math.ceil(self.stand_due_at - now)))
+            if self.stand_break_due_at is not None:
+                break_remaining = max(0, int(math.ceil(self.stand_break_due_at - now)))
+                self.stand_break_remaining = break_remaining if break_remaining > 0 else None
+            else:
+                self.stand_break_remaining = None
+            self.stand_break_due_at = None
 
         self.running = False
         if self.timer_id is not None:
@@ -597,6 +624,19 @@ class HealthApp:
         elif self.water_due_at is not None:
             self.water_remaining = max(0, int(math.ceil(self.water_due_at - now)))
 
+        if self.stand_break_due_at is not None:
+            if now >= self.stand_break_due_at:
+                self.stand_break_due_at = None
+                self.stand_break_remaining = None
+                self.show_blocking_popup(
+                    "BREAK COMPLETE!",
+                    "You can sit back down.",
+                    "Your next stand reminder will continue from now.",
+                )
+                now = time.time()
+            else:
+                self.stand_break_remaining = max(0, int(math.ceil(self.stand_break_due_at - now)))
+
         if self.stand_due_at is not None and now >= self.stand_due_at:
             self.show_blocking_popup(
                 "TIME TO MOVE!",
@@ -604,8 +644,10 @@ class HealthApp:
                 "A short walk resets your focus.",
             )
             now = time.time()
-            self.stand_due_at = now + self.stand_limit
-            self.stand_remaining = self.stand_limit
+            self.stand_break_due_at = now + self.stand_break_seconds
+            self.stand_break_remaining = self.stand_break_seconds
+            self.stand_due_at = self.stand_break_due_at + self.stand_limit
+            self.stand_remaining = self.stand_break_seconds + self.stand_limit
         elif self.stand_due_at is not None:
             self.stand_remaining = max(0, int(math.ceil(self.stand_due_at - now)))
 
