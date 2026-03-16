@@ -6,6 +6,7 @@ import argparse
 import queue
 import subprocess
 import math
+import threading
 from pathlib import Path
 
 try:
@@ -767,6 +768,10 @@ class HealthApp:
             app = NSRunningApplication.currentApplication()
             app.activateWithOptions_(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)
         except Exception:
+            self.activate_with_applescript_async()
+
+    def activate_with_applescript_async(self):
+        def _run_activation_script():
             try:
                 subprocess.run(
                     ["osascript", "-e", 'tell application "Wellness Reminder" to activate'],
@@ -776,6 +781,8 @@ class HealthApp:
                 )
             except Exception:
                 pass
+
+        threading.Thread(target=_run_activation_script, daemon=True).start()
 
     def center_popup(self, popup):
         popup.update_idletasks()
