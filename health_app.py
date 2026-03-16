@@ -708,7 +708,7 @@ class HealthApp:
 
         tk.Button(
             panel,
-            text="OK, I Will Do It",
+            text="OK",
             command=close_popup,
             padx=30,
             pady=10,
@@ -768,12 +768,16 @@ class HealthApp:
             app.activateWithOptions_(NSApplicationActivateAllWindows | NSApplicationActivateIgnoringOtherApps)
         except Exception:
             try:
+                # Keep activation fallback short so popup UI never hangs.
                 subprocess.run(
                     ["osascript", "-e", 'tell application "Wellness Reminder" to activate'],
                     check=False,
+                    timeout=0.8,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                 )
+            except subprocess.TimeoutExpired:
+                pass
             except Exception:
                 pass
 
