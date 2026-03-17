@@ -657,6 +657,21 @@ class HealthApp:
         self.schedule_next_check()
 
     def show_blocking_popup(self, title, headline, message):
+        if sys.platform == "darwin":
+            try:
+                from AppKit import NSAlert, NSAlertStyleInformational
+                import objc
+                alert = NSAlert.alloc().init()
+                alert.setMessageText_(title)
+                alert.setInformativeText_(f"{headline}\n{message}")
+                alert.setAlertStyle_(NSAlertStyleInformational)
+                alert.addButtonWithTitle_("OK")
+                # Show alert modally
+                alert.runModal()
+                return
+            except Exception:
+                pass
+        # Fallback to Tkinter popup for other platforms or if AppKit fails
         host_was_hidden, alpha_was_changed = self.prepare_popup_host_window()
         root_is_visible = self.root.winfo_viewable()
 
